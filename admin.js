@@ -34,10 +34,14 @@ const adminTabs = document.getElementById('adminTabs');
 const panelAdd = document.getElementById('panel-add');
 const panelMenu = document.getElementById('panel-menu');
 const panelOrders = document.getElementById('panel-orders');
+const menuSearch = document.getElementById('menuSearch');
+const menuSearchClear = document.getElementById('menuSearchClear');
+const ordersRefreshBtn = document.getElementById('ordersRefreshBtn');
 
 let editingId = null;
 let selectedFile = null;
 let useImagePath = null;
+let menuItemsCache = [];
 
 // side menu handlers (same as main site)
 function openSideMenu(){ sideMenu.classList.add('open'); menuBackdrop.classList.add('visible'); menuBackdrop.hidden = false; document.body.classList.add('menu-open'); sideMenu.setAttribute('aria-hidden','false'); menuBtn.setAttribute('aria-expanded','true'); closeMenuBtn.focus(); }
@@ -83,9 +87,20 @@ if(adminTabs){
   setActivePanel('add');
 }
 
+if(menuSearch){
+  menuSearch.addEventListener('input', () => renderMenuItems());
+}
+if(menuSearchClear){
+  menuSearchClear.addEventListener('click', () => {
+    if(menuSearch) menuSearch.value = '';
+    renderMenuItems();
+  });
+}
+
 // back & sign out (safe guards)
 if(signOutBtn) signOutBtn.addEventListener('click', async ()=> { await supabase.auth.signOut(); window.location.href = '/'; });
 if(adminRefreshBtn) adminRefreshBtn.addEventListener('click', ()=> fetchAndRender());
+if(ordersRefreshBtn) ordersRefreshBtn.addEventListener('click', ()=> renderOrders());
 if(signInBtn) signInBtn.addEventListener('click', ()=> { window.location.href = '/'; });
 
 function isAnonymousUser(user){
@@ -151,7 +166,7 @@ async function fetchAndRender(){
   if(!fetchAndRender._poll) {
     fetchAndRender._poll = setInterval(async ()=> {
       await renderOrders();
-    }, 6000);
+    }, 60000);
   }
 }
 
@@ -160,9 +175,15 @@ async function renderMenuItems(){
   try {
     const { data, error } = await supabase.from('menu_items').select('*').order('id', { ascending: true });
     if(error){ menuList.innerHTML = 'Error loading items'; console.error('menu_items fetch error', error); return; }
-    if(!data || data.length === 0){ menuList.innerHTML = '<div style="color:var(--muted)">No items</div>'; return; }
+    menuItemsCache = data || [];
+    const query = (menuSearch?.value || '').trim().toLowerCase();
+    const filtered = menuItemsCache.filter(it => {
+      if(!query) return true;
+      return (it.name || '').toLowerCase().includes(query) || (it.category || '').toLowerCase().includes(query);
+    });
+    if(!filtered || filtered.length === 0){ menuList.innerHTML = '<div style="color:var(--muted)">No items</div>'; return; }
     menuList.innerHTML = '';
-    data.forEach(it=>{
+    filtered.forEach(it=>{
       const div = document.createElement('div');
       div.className = 'admin-list-item';
       const imgUrl = it.image_path ? supabase.storage.from('menu-images').getPublicUrl(it.image_path).data.publicUrl : '';
@@ -191,7 +212,8 @@ async function renderMenuItems(){
         admin_category.value = data.category || '';
         useImagePath = data.image_path || null;
         previewWrap.style.display = 'none';
-        window.scrollTo({ top: 120, behavior: 'smooth' });
+        setActivePanel('add');
+        panelAdd?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
 
@@ -255,8 +277,24 @@ async function renderOrders(){
         <div style="margin-top:6px">
           ${ items.map(it=>`<div style="font-size:13px">${escapeHtml(it.name)} x ${it.qty} = ₹${it.price*it.qty}</div>`).join('') }
         </div>
+        <div style="margin-top:8px;display:flex;justify-content:flex-end">
+          <button class="delOrderBtn" data-id="${o.id}" style="color:#b00">Delete Order</button>
+        </div>
       `;
       ordersList.appendChild(wrap);
+    });
+    ordersList.querySelectorAll('.delOrderBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.getAttribute('data-id'));
+        if(!confirm('Delete this order?')) return;
+        const { error: deleteError } = await supabase.from('orders').delete().eq('id', id);
+        if(deleteError){
+          alert('Delete failed');
+          console.error('order delete error', deleteError);
+          return;
+        }
+        await renderOrders();
+      });
     });
   } catch(e){
     ordersList.innerHTML = 'Unexpected error';
