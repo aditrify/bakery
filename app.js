@@ -147,6 +147,19 @@ async function ensureGuestSession(){
   }
 }
 
+async function activateGuestMode(){
+  guestCheckout = true;
+  localStorage.setItem('guest_mode_v1','1');
+  const guestUser = await ensureGuestSession();
+  if(!guestUser){
+    showToast('Guest session failed. Please sign in or try again.');
+    guestCheckout = false;
+    localStorage.removeItem('guest_mode_v1');
+    return false;
+  }
+  return true;
+}
+
 async function updateAuthUI(){
   const profile = await getProfileFromSupabase();
   if(profile){
@@ -595,14 +608,15 @@ authBackdrop.addEventListener('click', closeAuthModal);
 
 // choice actions
 guestPrimary.addEventListener('click', ()=> {
-  // set guest mode and proceed (persist it so it doesn't disappear accidentally)
-  guestCheckout = true;
-  localStorage.setItem('guest_mode_v1','1');
-  closeAuthModal();
-  if(pendingOrderAttempt){
-    pendingOrderAttempt = false;
-    openOrderModal();
-  }
+  (async ()=> {
+    const ok = await activateGuestMode();
+    if(!ok) return;
+    closeAuthModal();
+    if(pendingOrderAttempt){
+      pendingOrderAttempt = false;
+      openOrderModal();
+    }
+  })();
 });
 gotoSignin.addEventListener('click', ()=> showAuthForms('signin'));
 
@@ -610,13 +624,15 @@ gotoSignin.addEventListener('click', ()=> showAuthForms('signin'));
 tabSignIn.addEventListener('click', ()=> showAuthForms('signin'));
 tabSignUp.addEventListener('click', ()=> showAuthForms('signup'));
 guestBtn.addEventListener('click', ()=> {
-  guestCheckout = true;
-  localStorage.setItem('guest_mode_v1','1');
-  closeAuthModal();
-  if(pendingOrderAttempt){
-    pendingOrderAttempt = false;
-    openOrderModal();
-  }
+  (async ()=> {
+    const ok = await activateGuestMode();
+    if(!ok) return;
+    closeAuthModal();
+    if(pendingOrderAttempt){
+      pendingOrderAttempt = false;
+      openOrderModal();
+    }
+  })();
 });
 
 // signin
