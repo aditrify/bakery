@@ -9,17 +9,14 @@
     /* small admin-specific tweaks */
     .admin-wrap{ max-width:980px; margin:72px auto 120px; padding:12px; }
     .admin-areas{ display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
-    .admin-panel{ flex:1; min-width:320px; background:white;border-radius:12px;padding:12px;border:1px solid #f0eaea; }
+    .admin-panel{ flex:1 1 320px; background:white;border-radius:12px;padding:12px;border:1px solid #f0eaea; }
+    .admin-panel[hidden]{ display:none; }
+    .admin-tabs{ margin:6px 0 16px; }
     .admin-list-item{ display:flex;gap:12px;align-items:center;padding:8px;border-bottom:1px dashed #f4f4f4 }
     .thumb{ width:72px;height:54px;object-fit:cover;border-radius:8px;border:1px solid #eee }
     .progress-ind{ display:inline-block;padding:6px 10px;border-radius:8px;background:#f5f5f5;margin-left:8px;font-size:13px }
     .admin-controls{ display:flex;gap:8px;align-items:center;margin-top:8px }
     .small-input{ width:100%; padding:8px;border-radius:8px;border:1px solid #eee; }
-    /* keep admin form sticky on large screens */
-    @media(min-width:900px){
-      .admin-left-col{ flex: 2 1 560px; }
-      .admin-right-col{ flex: 1 1 320px; position:sticky; top:84px; align-self:flex-start; }
-    }
   </style>
 </head>
 <body>
@@ -63,9 +60,14 @@
   <div class="admin-wrap">
     <h2>Admin — Menu & Orders</h2>
     <div style="margin-bottom:12px;color:var(--muted)">Use this page to manage menu items and view recent orders.</div>
+    <div id="adminTabs" class="categories admin-tabs" role="tablist" aria-label="Admin sections">
+      <button class="category active" data-panel="add" role="tab" aria-selected="true">Add / Edit item</button>
+      <button class="category" data-panel="menu" role="tab" aria-selected="false">Menu Items</button>
+      <button class="category" data-panel="orders" role="tab" aria-selected="false">Recent Orders</button>
+    </div>
 
     <div class="admin-areas">
-      <div class="admin-panel admin-left-col" id="panel-left">
+      <section class="admin-panel admin-left-col" id="panel-add" data-panel="add">
         <h3>Add / Edit item</h3>
         <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
           <input id="admin_name" class="small-input" placeholder="Name" />
@@ -85,17 +87,17 @@
             <button id="adminRefreshBtn" class="btn-ghost">Refresh</button>
           </div>
         </div>
+      </section>
 
-        <hr style="margin:12px 0" />
-
+      <section class="admin-panel" id="panel-menu" data-panel="menu" hidden>
         <h3>Menu items</h3>
         <div id="menuList">Loading…</div>
-      </div>
+      </section>
 
-      <div class="admin-panel admin-right-col" id="panel-right">
+      <section class="admin-panel admin-right-col" id="panel-orders" data-panel="orders" hidden>
         <h3>Recent orders</h3>
         <div id="ordersList">Loading…</div>
-      </div>
+      </section>
     </div>
   </div>
 
