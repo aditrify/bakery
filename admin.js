@@ -227,7 +227,11 @@ async function renderOrders(){
       resp = await supabase.from('orders').select('*').order('created', { ascending: false }).limit(50);
     }
     const { data, error } = resp;
-    if(error){ ordersList.innerHTML = 'Error loading orders'; console.error('orders fetch error', error); return; }
+    if(error){
+      ordersList.innerHTML = `Error loading orders: ${escapeHtml(error.message || 'unknown error')}`;
+      console.error('orders fetch error', error);
+      return;
+    }
     if(!data || data.length===0){ ordersList.innerHTML = '<div style="color:var(--muted)">No orders</div>'; return; }
     ordersList.innerHTML = '';
     data.forEach(o=>{
@@ -337,7 +341,7 @@ adminSaveBtn.addEventListener('click', async ()=>{
       const { data, error } = await supabase.storage.from('menu-images').upload(path, selectedFile, { cacheControl: '3600', upsert: true });
       if(error){
         console.error('upload error', error);
-        alert('Image upload failed. Check storage policies for menu-images bucket.');
+        alert(`Image upload failed: ${error.message || 'check storage policies for menu-images bucket.'}`);
         image_path = null;
       }
       else image_path = data.path;
