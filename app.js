@@ -8,12 +8,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // PHONE & SHOP INFO
 const bakeryName = "Gurj Bakery";
-const bakeryPhone = "917417191948";
 
 // --- state
 let cart = JSON.parse(localStorage.getItem('cart_v1') || '[]');
 let menuItems = []; // will be loaded from Supabase
 let guestCheckout = false; // when user chooses "Continue as guest"
+let orderType = 'pickup';
+const DELIVERY_FEE = 50;
+const DELIVERY_MIN_TOTAL = 199;
 
 // UI elements
 const itemsEl = document.getElementById('items');
@@ -28,8 +30,10 @@ const modalItemsEl = document.getElementById('modalItems');
 const modalTotalEl = document.getElementById('modalTotal');
 const modalSendBtn = document.getElementById('modalSend');
 const modalCancelBtn = document.getElementById('modalCancel');
-const modalQueueBtn = document.getElementById('modalQueue');
 const modalCloseBtn = document.getElementById('closeModal');
+const deliveryNote = document.getElementById('deliveryNote');
+const pickupLabel = document.getElementById('pickupLabel');
+const orderTypeInputs = Array.from(document.querySelectorAll('input[name="orderType"]'));
 
 const custName = document.getElementById('custName');
 const custPhone = document.getElementById('custPhone');
@@ -86,6 +90,10 @@ const new_password = document.getElementById('new_password');
 const confirm_new_password = document.getElementById('confirm_new_password');
 const changePassBtn = document.getElementById('changePassBtn');
 const passMsg = document.getElementById('passMsg');
+const contactModal = document.getElementById('contactModal');
+const contactBackdrop = document.getElementById('contactBackdrop');
+const closeContact = document.getElementById('closeContact');
+const contactCloseBtn = document.getElementById('contactCloseBtn');
 
 const toastEl = document.getElementById('toast');
 
@@ -150,13 +158,6 @@ async function ensureGuestSession(){
 async function activateGuestMode(){
   guestCheckout = true;
   localStorage.setItem('guest_mode_v1','1');
-  const guestUser = await ensureGuestSession();
-  if(!guestUser){
-    showToast('Guest session failed. Please sign in or try again.');
-    guestCheckout = false;
-    localStorage.removeItem('guest_mode_v1');
-    return false;
-  }
   return true;
 }
 
@@ -281,19 +282,7 @@ function imageUrlForItem(item){
       if(url) return url;
     } catch(e){}
   }
-  let key = (item.name || '').split(/[\s,()]+/).slice(0,2).join(' ');
-  if(!key) key = item.category || 'bakery';
-  const q = encodeURIComponent(key + ',' + item.category);
-  return `https://source.unsplash.com/400x300/?${q}`;
-}
-function placeholderSvgDataUri(text){
-  const label = (text||'item').slice(0,18);
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'>
-    <rect width='100%' height='100%' rx='12' ry='12' fill='#fff'/>
-    <text x='50%' y='45%' font-size='64' text-anchor='middle' dominant-baseline='middle'>🥖</text>
-    <text x='50%' y='85%' font-size='20' text-anchor='middle' fill='#777'>${label}</text>
-  </svg>`;
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  return '/icons/192.png';
 }
 
 function renderCategories(){
@@ -345,7 +334,7 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
     img.alt = `${item.name} - ${item.category}`;
     img.loading = 'lazy';
     img.src = imageUrlForItem(item);
-    img.onerror = function(){ this.onerror = null; this.src = placeholderSvgDataUri(item.name); };
+    img.onerror = function(){ this.onerror = null; this.src = '/icons/192.png'; };
 
     const title = document.createElement('h3');
     title.textContent = item.name;
@@ -426,15 +415,23 @@ async function placeOrderToServer(){
     return;
   }
 
-  const total = cart.reduce((s,i)=> s + (i.price*i.qty), 0);
+  const subtotal = cart.reduce((s,i)=> s + (i.price*i.qty), 0);
+  if(orderType === 'delivery' && subtotal < DELIVERY_MIN_TOTAL){
+    const diff = DELIVERY_MIN_TOTAL - subtotal;
+    showToast(`Home delivery is available on orders above ₹${DELIVERY_MIN_TOTAL}. Please add items worth ₹${diff}.`);
+    return;
+  }
   let guestUser = null;
   if(!profile && isGuest){
     guestUser = await ensureGuestSession();
-    if(!guestUser){
-      showToast('Guest session failed. Please sign in or try again.');
-      return;
-    }
   }
+  const total = orderType === 'delivery' ? subtotal + DELIVERY_FEE : subtotal;
+
+  const pickupValue = (custPickup.value || '').trim();
+  const pickupInfo = orderType === 'delivery'
+    ? (pickupValue ? `Delivery - ${pickupValue}` : 'Delivery')
+    : (pickupValue ? `Pickup - ${pickupValue}` : 'Pickup');
+
   const payload = {
     // store null for user_id if guest
     user_id: profile ? profile.id : (guestUser ? guestUser.id : null),
@@ -442,7 +439,7 @@ async function placeOrderToServer(){
     total,
     name: custName.value || (profile ? profile.name : '') || '',
     phone: custPhone.value || (profile ? profile.phone : '') || '',
-    pickup: custPickup.value || '',
+    pickup: pickupInfo,
     address: custAddress.value || (profile ? profile.address : '') || ''
   };
 
@@ -478,6 +475,31 @@ async function placeOrderToServer(){
 // ---------------------- modal logic ----------------------
 let pendingOrderAttempt = false;
 
+function updateOrderTypeUI(){
+  if(pickupLabel){
+    pickupLabel.textContent = orderType === 'delivery' ? 'Delivery Date & Time' : 'Pickup Date & Time';
+  }
+  if(orderType === 'delivery'){
+    custPickup.placeholder = 'Delivery time (e.g., Today 5 PM)';
+  } else {
+    custPickup.placeholder = 'Pickup time (e.g., Today 5 PM)';
+  }
+  renderOrderModal();
+}
+
+function setupOrderTypeControls(){
+  if(orderTypeInputs.length === 0) return;
+  const checked = orderTypeInputs.find(input => input.checked);
+  if(checked) orderType = checked.value;
+  orderTypeInputs.forEach(input => {
+    input.addEventListener('change', () => {
+      orderType = input.value;
+      updateOrderTypeUI();
+    });
+  });
+  updateOrderTypeUI();
+}
+
 function openOrderModal(){
   (async ()=>{
     const profile = await getProfileFromSupabase();
@@ -487,6 +509,7 @@ function openOrderModal(){
       custAddress.value = profile.address || '';
     }
   })();
+  updateOrderTypeUI();
   renderOrderModal();
   modal.setAttribute('aria-hidden','false');
   modal.style.display = 'block';
@@ -527,43 +550,29 @@ function renderOrderModal(){
   modalItemsEl.querySelectorAll('.m-minus').forEach(b=>{ b.addEventListener('click', (e)=> { const id = Number(b.getAttribute('data-id')); const mi = menuItems.find(m=>m.id===id); removeFromCart(mi); renderOrderModal(); }); });
   modalItemsEl.querySelectorAll('.m-delete').forEach(b=>{ b.addEventListener('click', (e)=> { const id = Number(b.getAttribute('data-id')); cart = cart.filter(c=>c.id !== id); saveCart(); renderCart(); renderOrderModal(); }); });
 
-  const total = cart.reduce((s,i)=> s + (i.price*i.qty), 0);
-  modalTotalEl.textContent = 'Total: ₹' + total;
+  const subtotal = cart.reduce((s,i)=> s + (i.price*i.qty), 0);
+  let total = subtotal;
+  if(orderType === 'delivery'){
+    total += DELIVERY_FEE;
+  }
+  modalTotalEl.textContent = `Total: ₹${total}`;
+  if(deliveryNote){
+    if(orderType === 'delivery'){
+      if(subtotal < DELIVERY_MIN_TOTAL){
+        const diff = DELIVERY_MIN_TOTAL - subtotal;
+        deliveryNote.textContent = `Home delivery is available on orders above ₹${DELIVERY_MIN_TOTAL}. Please add items worth ₹${diff}.`;
+      } else {
+        deliveryNote.textContent = `Extra ₹${DELIVERY_FEE} for Home Delivery.`;
+      }
+    } else {
+      deliveryNote.textContent = '';
+    }
+  }
 }
-
-// Save offline
-modalQueueBtn.addEventListener('click', ()=> {
-  const q = JSON.parse(localStorage.getItem('orders_queue')||'[]');
-  q.push({
-    cart: cart,
-    created: new Date().toISOString(),
-    meta: { name: custName.value || '', phone: custPhone.value || '', pickup: custPickup.value || '', address: custAddress.value || '' }
-  });
-  localStorage.setItem('orders_queue', JSON.stringify(q));
-  showToast('Order saved locally (offline).');
-  closeOrderModal();
-});
 
 // modal send -> now places order to server
 modalSendBtn.addEventListener('click', ()=> {
   placeOrderToServer();
-});
-
-// handle saved orders when online (kept simple)
-window.addEventListener('online', ()=> {
-  const q = JSON.parse(localStorage.getItem('orders_queue')||'[]');
-  if(q.length>0){
-    if(confirm(`You have ${q.length} saved order(s). Do you want to send the first one now?`)){
-      const first = q.shift();
-      localStorage.setItem('orders_queue', JSON.stringify(q));
-      const oldCart = cart;
-      cart = first.cart; saveCart(); renderCart();
-      renderMenu(document.querySelector('.category.active')?.textContent || 'All', searchInput.value || '');
-      if(first.meta){ custName.value = first.meta.name || ''; custPhone.value = first.meta.phone || ''; custPickup.value = first.meta.pickup || ''; custAddress.value = first.meta.address || ''; }
-      placeOrderToServer();
-      cart = oldCart; saveCart(); renderCart();
-    }
-  }
 });
 
 // ---------------------- auth modal UI ----------------------
@@ -745,6 +754,20 @@ changePassBtn.addEventListener('click', async ()=> {
   setTimeout(()=> { passMsg.textContent = ''; }, 2000);
 });
 
+function openContactModal(){
+  if(!contactModal) return;
+  contactModal.setAttribute('aria-hidden','false');
+  contactModal.style.display = 'block';
+}
+function closeContactModal(){
+  if(!contactModal) return;
+  contactModal.setAttribute('aria-hidden','true');
+  contactModal.style.display = 'none';
+}
+if(closeContact) closeContact.addEventListener('click', closeContactModal);
+if(contactBackdrop) contactBackdrop.addEventListener('click', closeContactModal);
+if(contactCloseBtn) contactCloseBtn.addEventListener('click', closeContactModal);
+
 // ---------------------- side menu + install + search ----------------------
 const menuBtn = document.getElementById('menuBtn');
 const sideMenu = document.getElementById('sideMenu');
@@ -779,8 +802,13 @@ document.querySelectorAll('.side-link').forEach(btn => {
         }
         window.location.href = '/admin.html';
       }
-      else if(action === 'feedback'){ const subject = encodeURIComponent(`Feedback for ${bakeryName}`); window.location.href = `mailto:feedback@${bakeryName.replace(/\s+/g,'').toLowerCase()}.com?subject=${subject}`; }
-      else if(action === 'contact'){ window.location.href = `tel:+${bakeryPhone}`; }
+      else if(action === 'feedback'){
+        const text = encodeURIComponent(`Feedback for ${bakeryName}: `);
+        window.location.href = `https://wa.me/9501800529?text=${text}`;
+      }
+      else if(action === 'contact'){
+        openContactModal();
+      }
     }, 300);
   });
 });
@@ -811,6 +839,7 @@ async function boot(){
   renderMenu('All', '', currentRenderLimit);
   renderCart();
   await updateAuthUI();
+  setupOrderTypeControls();
 }
 boot();
 
