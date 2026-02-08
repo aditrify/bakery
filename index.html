@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gurj Bakery</title>
+
+  <!-- manifest and icons (root-relative paths) -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/icons/192.png" sizes="192x192" />
+  <meta name="theme-color" content="#ff3131" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <button id="menuBtn" class="hamburger" aria-label="menu" aria-expanded="false">≡</button>
+      <img src="/icons/logo.png" alt="Gurj Bakery logo" class="logo">
+      <div class="title-block">
+        <div id="bakery-name">Gurj Bakery</div>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <button id="installBtn" class="install-btn" hidden aria-hidden="true">Install</button>
+      <div id="authContainer" class="auth-container" aria-hidden="false">
+        <button id="signInBtn" class="auth-btn">Sign In</button>
+        <div id="accountBadge" class="account-badge hidden" title="Signed in user">
+          <span id="accountName"></span>
+          <button id="signOutBtn" class="small-ghost" aria-label="Sign out">⎋</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="sticky-stack">
+    <div class="banner" id="banner" role="status" aria-live="polite">
+      <span class="banner-icon" aria-hidden="true">🚚</span>
+      <span class="banner-text">Home Delivery on orders above ₹199</span>
+    </div>
+
+    <div class="search-wrap" id="searchWrap">
+      <input id="search" placeholder="Search menu (e.g., 'croissant')" aria-label="Search menu" />
+      <button id="searchBtn" aria-label="Search">🔍</button>
+    </div>
+
+    <nav class="categories" id="categories" aria-label="Categories">
+      <!-- categories injected by JS -->
+    </nav>
+  </div>
+
+  <aside id="sideMenu" class="side-menu" role="navigation" aria-label="Main menu" aria-hidden="true">
+    <div class="side-header">
+      <div class="side-title">Menu</div>
+      <button id="closeMenuBtn" class="side-close" aria-label="Close menu">×</button>
+    </div>
+    <nav class="side-nav">
+      <button class="side-link" data-action="home">Home</button>
+      <button class="side-link" data-action="account">Account</button>
+      <!-- admin now opens separate admin page -->
+      <button class="side-link" data-action="admin">Admin</button>
+      <button class="side-link" data-action="feedback">Feedback</button>
+      <button class="side-link" data-action="contact">Contact Us</button>
+    </nav>
+  </aside>
+  <div id="menuBackdrop" class="menu-backdrop" hidden></div>
+
+  <main id="mainContent">
+    <section id="menu" class="menu-section">
+      <div id="items" class="items-grid" aria-live="polite"></div>
+      <div id="loadMoreWrap" style="text-align:center;margin:16px 0;"></div>
+    </section>
+  </main>
+
+  <div class="order-floating" id="orderFloating" role="region" aria-label="Order bar">
+    <div class="total" id="total">Total - ₹0</div>
+    <button id="orderBtn" class="order-btn">Place Order</button>
+  </div>
+
+  <footer class="footer">
+    <small>Jai Hind — Gurj Bakery</small>
+    <div class="footer-tagline">Discipline in every bake, perfection in every bite.</div>
+  </footer>
+
+  <!-- Order modal -->
+  <div id="orderModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-panel" role="document" aria-labelledby="orderModalTitle">
+      <header class="modal-header">
+        <h2 id="orderModalTitle">Order Summary</h2>
+        <button id="closeModal" class="modal-close" aria-label="Close">&times;</button>
+      </header>
+
+      <div class="modal-body" id="modalBody">
+        <div id="modalItems"></div>
+
+        <div class="modal-inputs">
+          <label>
+            Name
+            <input id="custName" placeholder="Your name" />
+          </label>
+          <label>
+            Phone
+            <input id="custPhone" placeholder="Phone number (e.g., 9898xxxxxx)" />
+          </label>
+          <label>
+            Pickup / Delivery
+            <input id="custPickup" placeholder="Delivery time (e.g., Delivery 2 PM)" />
+          </label>
+          <label>
+            Address (if delivery)
+            <textarea id="custAddress" rows="2" placeholder="Address for delivery"></textarea>
+          </label>
+        </div>
+
+        <div class="modal-total" id="modalTotal">Total: ₹0</div>
+      </div>
+
+      <footer class="modal-footer">
+        <button id="modalCancel" class="btn-muted">Cancel</button>
+        <button id="modalQueue" class="btn-ghost">Save Offline</button>
+        <!-- This button now places the order on server (admin will see it) -->
+        <button id="modalSend" class="btn-primary">Place Order</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Auth modal (Sign In / Sign Up) -->
+  <div id="authModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="authBackdrop"></div>
+    <div class="modal-panel" role="document" aria-labelledby="authTitle">
+      <header class="modal-header">
+        <h2 id="authTitle">Continue or Sign In</h2>
+        <button id="closeAuth" class="modal-close" aria-label="Close">&times;</button>
+      </header>
+
+      <div class="modal-body" id="authBody">
+        <div id="authChoice" style="display:block;padding:12px">
+          <p style="margin:0 0 12px;font-weight:700">How would you like to continue?</p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button id="guestPrimary" class="btn-primary" style="padding:14px;font-size:16px">Continue as guest</button>
+            <button id="gotoSignin" class="btn-ghost" style="padding:12px;font-size:15px">Sign In / Create account</button>
+          </div>
+          <div style="margin-top:12px;color:var(--muted);font-size:13px">
+            Continue as guest keeps your order locally on this device. Creating an account saves your details for next time.
+          </div>
+        </div>
+
+        <div id="authForms" style="display:none">
+          <div class="auth-tabs" style="margin-bottom:12px">
+            <button id="tabSignIn" class="auth-tab active">Sign In</button>
+            <button id="tabSignUp" class="auth-tab">Sign Up</button>
+          </div>
+
+          <div id="signInPanel" class="auth-panel">
+            <label>Username (email)<input id="signin_username" /></label>
+            <label>Password<input id="signin_password" type="password" /></label>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button id="signinBtn" class="btn-primary">Sign In</button>
+              <button id="guestBtn" class="btn-ghost">Continue as guest</button>
+            </div>
+            <div id="signinMsg" style="margin-top:8px;color:#b00;font-size:13px"></div>
+          </div>
+
+          <div id="signUpPanel" class="auth-panel hidden">
+            <label>Username (email)<input id="signup_username" /></label>
+            <label>Password<input id="signup_password" type="password" /></label>
+            <label>Name<input id="signup_name" /></label>
+            <label>Phone<input id="signup_phone" /></label>
+            <label>Address<textarea id="signup_address" rows="2"></textarea></label>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button id="signupBtn" class="btn-primary">Create account</button>
+            </div>
+            <div id="signupMsg" style="margin-top:8px;color:#b00;font-size:13px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account settings modal (now includes Change Password) -->
+  <div id="accountModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="accountBackdrop"></div>
+    <div class="modal-panel" role="document" aria-labelledby="accountTitle">
+      <header class="modal-header">
+        <h2 id="accountTitle">Account settings</h2>
+        <button id="closeAccount" class="modal-close" aria-label="Close">&times;</button>
+      </header>
+
+      <div class="modal-body" id="accountBody">
+        <div id="accountMsg" style="margin-bottom:8px;color:var(--muted);font-size:13px"></div>
+
+        <div class="modal-inputs">
+          <label>
+            Name
+            <input id="acct_name" placeholder="Your full name" />
+          </label>
+          <label>
+            Phone
+            <input id="acct_phone" placeholder="Phone (with country code)" />
+          </label>
+          <label>
+            Address
+            <textarea id="acct_address" rows="3" placeholder="Address"></textarea>
+          </label>
+        </div>
+
+        <hr style="margin:12px 0" />
+
+        <div style="font-weight:700;margin-bottom:8px">Change password</div>
+        <div class="modal-inputs">
+          <label>
+            Current password
+            <input id="current_password" type="password" placeholder="Current password" />
+          </label>
+          <label>
+            New password
+            <input id="new_password" type="password" placeholder="New password" />
+          </label>
+          <label>
+            Confirm new password
+            <input id="confirm_new_password" type="password" placeholder="Confirm new password" />
+          </label>
+          <div id="passMsg" style="margin-top:8px;color:#b00;font-size:13px"></div>
+        </div>
+
+      </div>
+
+      <footer class="modal-footer">
+        <button id="acctCancel" class="btn-muted">Cancel</button>
+        <button id="acctSave" class="btn-primary">Save changes</button>
+        <button id="changePassBtn" class="btn-ghost">Change password</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- toast container -->
+  <div id="toast" aria-hidden="true" style="position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:9999;display:none;padding:10px 14px;border-radius:8px;background:#222;color:#fff;"></div>
+
+  <script type="module" src="/app.js"></script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(()=> console.log('SW registered from /service-worker.js'))
+        .catch(err => console.log('SW failed', err));
+    }
+  </script>
+</body>
+</html>

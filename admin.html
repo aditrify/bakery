@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gurj Bakery — Admin</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* small admin-specific tweaks */
+    .admin-wrap{ max-width:980px; margin:72px auto 120px; padding:12px; }
+    .admin-areas{ display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
+    .admin-panel{ flex:1; min-width:320px; background:white;border-radius:12px;padding:12px;border:1px solid #f0eaea; }
+    .admin-list-item{ display:flex;gap:12px;align-items:center;padding:8px;border-bottom:1px dashed #f4f4f4 }
+    .thumb{ width:72px;height:54px;object-fit:cover;border-radius:8px;border:1px solid #eee }
+    .progress-ind{ display:inline-block;padding:6px 10px;border-radius:8px;background:#f5f5f5;margin-left:8px;font-size:13px }
+    .admin-controls{ display:flex;gap:8px;align-items:center;margin-top:8px }
+    .small-input{ width:100%; padding:8px;border-radius:8px;border:1px solid #eee; }
+    /* keep admin form sticky on large screens */
+    @media(min-width:900px){
+      .admin-left-col{ flex: 2 1 560px; }
+      .admin-right-col{ flex: 1 1 320px; position:sticky; top:84px; align-self:flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <!-- topbar + side menu (same structure as index.html for smooth transition) -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button id="menuBtn" class="hamburger" aria-label="menu" aria-expanded="false">≡</button>
+      <img src="/icons/logo.png" alt="Gurj Bakery logo" class="logo">
+      <div class="title-block">
+        <div id="bakery-name">Gurj Bakery — Admin</div>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <button id="installBtn" class="install-btn" hidden aria-hidden="true">Install</button>
+      <div id="authContainer" class="auth-container" aria-hidden="false">
+        <button id="signInBtn" class="auth-btn">Sign In</button>
+        <div id="accountBadge" class="account-badge hidden" title="Signed in user">
+          <span id="accountName"></span>
+          <button id="signOutBtn" class="small-ghost" aria-label="Sign out">⎋</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <aside id="sideMenu" class="side-menu" role="navigation" aria-label="Main menu" aria-hidden="true">
+    <div class="side-header">
+      <div class="side-title">Menu</div>
+      <button id="closeMenuBtn" class="side-close" aria-label="Close menu">×</button>
+    </div>
+    <nav class="side-nav">
+      <button class="side-link" data-action="home">Home</button>
+      <button class="side-link" data-action="account">Account</button>
+      <button class="side-link" data-action="admin">Admin</button>
+      <button class="side-link" data-action="feedback">Feedback</button>
+      <button class="side-link" data-action="contact">Contact Us</button>
+    </nav>
+  </aside>
+  <div id="menuBackdrop" class="menu-backdrop" hidden></div>
+
+  <div class="admin-wrap">
+    <h2>Admin — Menu & Orders</h2>
+    <div style="margin-bottom:12px;color:var(--muted)">Use this page to manage menu items and view recent orders.</div>
+
+    <div class="admin-areas">
+      <div class="admin-panel admin-left-col" id="panel-left">
+        <h3>Add / Edit item</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+          <input id="admin_name" class="small-input" placeholder="Name" />
+          <input id="admin_price" class="small-input" placeholder="Price" type="number" />
+          <input id="admin_category" class="small-input" placeholder="Category" />
+          <input id="admin_photo" type="file" accept="image/*" />
+          <div id="previewWrap" style="display:none">
+            <img id="previewImg" style="max-width:100%;border-radius:8px;border:1px solid #eee" />
+            <div style="margin-top:6px">
+              <button id="cropBtn" class="btn-ghost">Resize & use image</button>
+              <span id="uploadStatus" class="progress-ind" style="display:none">Uploading…</span>
+            </div>
+          </div>
+          <div class="admin-controls">
+            <button id="adminSaveBtn" class="btn-primary">Save</button>
+            <button id="adminCancelBtn" class="btn-muted">Reset</button>
+            <button id="adminRefreshBtn" class="btn-ghost">Refresh</button>
+          </div>
+        </div>
+
+        <hr style="margin:12px 0" />
+
+        <h3>Menu items</h3>
+        <div id="menuList">Loading…</div>
+      </div>
+
+      <div class="admin-panel admin-right-col" id="panel-right">
+        <h3>Recent orders</h3>
+        <div id="ordersList">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>
