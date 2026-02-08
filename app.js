@@ -111,13 +111,16 @@ function showToast(msg, timeout = 2800){
 }
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function isAnonymousUser(user){
+  return Boolean(user?.is_anonymous || user?.app_metadata?.provider === 'anonymous');
+}
 
 // ---------------------- Supabase helpers ----------------------
 async function getProfileFromSupabase(){
   try {
     const { data } = await supabase.auth.getUser();
     const user = data?.user || null;
-    if(!user) return null;
+    if(!user || isAnonymousUser(user)) return null;
     const metadata = user.user_metadata || {};
     return {
       id: user.id,
@@ -129,6 +132,19 @@ async function getProfileFromSupabase(){
       role: metadata.role || ''
     };
   } catch(e){ console.warn('getProfile error', e); return null; }
+}
+
+async function ensureGuestSession(){
+  try {
+    const { data } = await supabase.auth.getUser();
+    if(data?.user) return data.user;
+    const { data: anonData, error } = await supabase.auth.signInAnonymously();
+    if(error) { console.warn('anonymous sign-in failed', error); return null; }
+    return anonData?.user || null;
+  } catch(e){
+    console.warn('ensureGuestSession error', e);
+    return null;
+  }
 }
 
 async function updateAuthUI(){
@@ -162,9 +178,12 @@ async function updateAuthUI(){
 }
 
 // ensure guest mode cleared when auth state changes to avoid confusion
-supabase.auth.onAuthStateChange(() => {
-  guestCheckout = false;
-  localStorage.removeItem('guest_mode_v1');
+supabase.auth.onAuthStateChange((event, session) => {
+  const user = session?.user;
+  if(!user || !isAnonymousUser(user)){
+    guestCheckout = false;
+    localStorage.removeItem('guest_mode_v1');
+  }
   updateAuthUI();
 });
 
@@ -395,9 +414,13 @@ async function placeOrderToServer(){
   }
 
   const total = cart.reduce((s,i)=> s + (i.price*i.qty), 0);
+  let guestUser = null;
+  if(!profile && isGuest){
+    guestUser = await ensureGuestSession();
+  }
   const payload = {
     // store null for user_id if guest
-    user_id: profile ? profile.id : null,
+    user_id: profile ? profile.id : (guestUser ? guestUser.id : null),
     items: cart,
     total,
     name: custName.value || (profile ? profile.name : '') || '',
