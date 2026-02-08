@@ -417,6 +417,10 @@ async function placeOrderToServer(){
   let guestUser = null;
   if(!profile && isGuest){
     guestUser = await ensureGuestSession();
+    if(!guestUser){
+      showToast('Guest session failed. Please sign in or try again.');
+      return;
+    }
   }
   const payload = {
     // store null for user_id if guest
