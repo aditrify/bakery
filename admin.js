@@ -211,6 +211,12 @@ async function renderMenuItems(){
   }
 }
 
+async function getNextMenuItemId(){
+  const { data, error } = await supabase.from('menu_items').select('id').order('id', { ascending: false }).limit(1);
+  if(error || !data || data.length === 0) return 1;
+  return Number(data[0].id || 0) + 1;
+}
+
 async function renderOrders(){
   ordersList.innerHTML = 'Loading…';
   try {
@@ -329,11 +335,15 @@ adminSaveBtn.addEventListener('click', async ()=>{
     const path = `menu-${uniqueId}-${safeName}`;
     try {
       const { data, error } = await supabase.storage.from('menu-images').upload(path, selectedFile, { cacheControl: '3600', upsert: true });
-      if(error){ console.error('upload error', error); alert('Image upload failed'); image_path = null; }
+      if(error){
+        console.error('upload error', error);
+        alert('Image upload failed. Check storage policies for menu-images bucket.');
+        image_path = null;
+      }
       else image_path = data.path;
     } catch(e){
       console.error(e);
-      alert('Image upload failed');
+      alert('Image upload failed. Check storage policies for menu-images bucket.');
     }
   }
 
@@ -346,26 +356,12 @@ adminSaveBtn.addEventListener('click', async ()=>{
       if(error) { alert('Update failed'); console.error('update error', error); }
       else { showTemp('Updated'); }
     } else {
-      const { error } = await supabase.from('menu_items').insert([{ name, price, category, image_path }]);
+      const nextId = await getNextMenuItemId();
+      const { error } = await supabase.from('menu_items').insert([{ id: nextId, name, price, category, image_path }]);
       if(error){
         if(error.code === '23505'){
-          const { data: existing, error: lookupError } = await supabase
-            .from('menu_items')
-            .select('id')
-            .eq('name', name)
-            .eq('category', category)
-            .limit(1);
-          if(lookupError || !existing || existing.length === 0){
-            alert('Add failed');
-            console.error('insert error', error);
-          } else {
-            const { error: updateError } = await supabase
-              .from('menu_items')
-              .update({ price, image_path })
-              .eq('id', existing[0].id);
-            if(updateError){ alert('Update failed'); console.error('update error', updateError); }
-            else { showTemp('Updated existing'); }
-          }
+          alert('Add failed: duplicate ID. Try again.');
+          console.error('insert error', error);
         } else {
           alert('Add failed');
           console.error('insert error', error);
