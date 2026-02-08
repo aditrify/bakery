@@ -17,6 +17,8 @@
     .progress-ind{ display:inline-block;padding:6px 10px;border-radius:8px;background:#f5f5f5;margin-left:8px;font-size:13px }
     .admin-controls{ display:flex;gap:8px;align-items:center;margin-top:8px }
     .small-input{ width:100%; padding:8px;border-radius:8px;border:1px solid #eee; }
+    .admin-search{ display:flex;gap:8px;align-items:center;margin-bottom:10px }
+    .admin-search input{ flex:1; }
   </style>
 </head>
 <body>
@@ -91,11 +93,18 @@
 
       <section class="admin-panel" id="panel-menu" data-panel="menu" hidden>
         <h3>Menu items</h3>
+        <div class="admin-search">
+          <input id="menuSearch" class="small-input" placeholder="Search menu items" />
+          <button id="menuSearchClear" class="btn-ghost">Clear</button>
+        </div>
         <div id="menuList">Loading…</div>
       </section>
 
       <section class="admin-panel admin-right-col" id="panel-orders" data-panel="orders" hidden>
-        <h3>Recent orders</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3 style="margin:0">Recent orders</h3>
+          <button id="ordersRefreshBtn" class="btn-ghost">Refresh</button>
+        </div>
         <div id="ordersList">Loading…</div>
       </section>
     </div>
