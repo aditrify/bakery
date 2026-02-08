@@ -20,14 +20,20 @@ const previewWrap = document.getElementById('previewWrap');
 const previewImg = document.getElementById('previewImg');
 const cropBtn = document.getElementById('cropBtn');
 const uploadStatus = document.getElementById('uploadStatus');
-const backBtn = document.getElementById('backBtn'); // backBtn may not exist in all header variations
 const signOutBtn = document.getElementById('signOutBtn');
 const adminRefreshBtn = document.getElementById('adminRefreshBtn');
+const signInBtn = document.getElementById('signInBtn');
+const accountBadge = document.getElementById('accountBadge');
+const accountName = document.getElementById('accountName');
 
 const menuBtn = document.getElementById('menuBtn');
 const sideMenu = document.getElementById('sideMenu');
 const closeMenuBtn = document.getElementById('closeMenuBtn');
 const menuBackdrop = document.getElementById('menuBackdrop');
+const adminTabs = document.getElementById('adminTabs');
+const panelAdd = document.getElementById('panel-add');
+const panelMenu = document.getElementById('panel-menu');
+const panelOrders = document.getElementById('panel-orders');
 
 let editingId = null;
 let selectedFile = null;
@@ -39,23 +45,98 @@ function closeSideMenu(){ sideMenu.classList.remove('open'); menuBackdrop.classL
 if(menuBtn) menuBtn.addEventListener('click', openSideMenu);
 if(closeMenuBtn) closeMenuBtn.addEventListener('click', closeSideMenu);
 if(menuBackdrop) menuBackdrop.addEventListener('click', closeSideMenu);
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && sideMenu.classList.contains('open')) closeSideMenu(); });
+
+document.querySelectorAll('.side-link').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const action = btn.getAttribute('data-action');
+    closeSideMenu();
+    setTimeout(() => {
+      if(action === 'home'){ window.location.href = '/'; }
+      else if(action === 'account'){ window.location.href = '/'; }
+      else if(action === 'admin'){ window.location.href = '/admin.html'; }
+      else if(action === 'feedback'){ window.location.href = 'mailto:feedback@gurjbakery.com?subject=Feedback%20for%20Gurj%20Bakery'; }
+      else if(action === 'contact'){ window.location.href = 'tel:+917417191948'; }
+    }, 300);
+  });
+});
+
+function setActivePanel(panel){
+  const buttons = adminTabs?.querySelectorAll('.category') || [];
+  buttons.forEach(btn => {
+    const isActive = btn.getAttribute('data-panel') === panel;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+  if(panelAdd) panelAdd.hidden = panel !== 'add';
+  if(panelMenu) panelMenu.hidden = panel !== 'menu';
+  if(panelOrders) panelOrders.hidden = panel !== 'orders';
+}
+
+if(adminTabs){
+  adminTabs.querySelectorAll('.category').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = btn.getAttribute('data-panel');
+      setActivePanel(panel);
+    });
+  });
+  setActivePanel('add');
+}
 
 // back & sign out (safe guards)
-if(backBtn) backBtn.addEventListener('click', ()=> { window.location.href = '/'; });
 if(signOutBtn) signOutBtn.addEventListener('click', async ()=> { await supabase.auth.signOut(); window.location.href = '/'; });
 if(adminRefreshBtn) adminRefreshBtn.addEventListener('click', ()=> fetchAndRender());
+if(signInBtn) signInBtn.addEventListener('click', ()=> { window.location.href = '/'; });
+
+function isAnonymousUser(user){
+  return Boolean(user?.is_anonymous || user?.app_metadata?.provider === 'anonymous');
+}
+
+async function getProfile(){
+  const { data } = await supabase.auth.getUser();
+  const user = data?.user || null;
+  if(!user || isAnonymousUser(user)) return null;
+  const metadata = user.user_metadata || {};
+  return {
+    id: user.id,
+    name: metadata.name || user.email || 'Admin',
+    role: metadata.role || ''
+  };
+}
+
+async function updateAuthUI(){
+  const profile = await getProfile();
+  if(profile){
+    signInBtn?.classList.add('hidden');
+    accountBadge?.classList.remove('hidden');
+    if(accountName) accountName.textContent = profile.name || 'Admin';
+    document.querySelectorAll('.side-link').forEach(btn=>{
+      if(btn.getAttribute('data-action') === 'admin'){
+        btn.style.display = profile.role === 'admin' ? 'block' : 'none';
+      }
+    });
+  } else {
+    signInBtn?.classList.remove('hidden');
+    accountBadge?.classList.add('hidden');
+    if(accountName) accountName.textContent = '';
+    document.querySelectorAll('.side-link').forEach(btn=>{
+      if(btn.getAttribute('data-action') === 'admin'){
+        btn.style.display = 'none';
+      }
+    });
+  }
+}
 
 // auth guard: only admin role allowed
 (async function ensureAdmin(){
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user || null;
-  if(!user){
+  await updateAuthUI();
+  const profile = await getProfile();
+  if(!profile){
     alert('Please sign in as admin first.');
     window.location.href = '/';
     return;
   }
-  const role = user.user_metadata?.role || '';
-  if(role !== 'admin'){
+  if(profile.role !== 'admin'){
     alert('Admin access required.');
     window.location.href = '/';
     return;
@@ -146,6 +227,11 @@ async function renderOrders(){
     data.forEach(o=>{
       const cre = o.created_at || o.created || o.createdAt || o.created_on || null;
       const when = cre ? new Date(cre).toLocaleString() : '(unknown)';
+      let items = [];
+      if(Array.isArray(o.items)) items = o.items;
+      else if(typeof o.items === 'string'){
+        try { items = JSON.parse(o.items); } catch(e){ items = []; }
+      }
       const wrap = document.createElement('div');
       wrap.style.border = '1px solid #f0eaea';
       wrap.style.padding = '8px';
@@ -157,7 +243,7 @@ async function renderOrders(){
         </div>
         <div style="font-size:13px;color:var(--muted);margin-top:6px">${escapeHtml(o.address || '')}</div>
         <div style="margin-top:6px">
-          ${ (o.items || []).map(it=>`<div style="font-size:13px">${escapeHtml(it.name)} x ${it.qty} = ₹${it.price*it.qty}</div>`).join('') }
+          ${ items.map(it=>`<div style="font-size:13px">${escapeHtml(it.name)} x ${it.qty} = ₹${it.price*it.qty}</div>`).join('') }
         </div>
       `;
       ordersList.appendChild(wrap);
@@ -169,7 +255,7 @@ async function renderOrders(){
 }
 
 // image preview and client-side resize (simple)
-admin_photo.addEventListener('change', (e)=>{
+if(admin_photo) admin_photo.addEventListener('change', (e)=>{
   const f = e.target.files && e.target.files[0];
   if(!f) return;
   selectedFile = f;
@@ -238,9 +324,11 @@ adminSaveBtn.addEventListener('click', async ()=>{
 
   if(selectedFile){
     // generate path and upload to bucket 'menu-images'
-    const path = `menu-${Date.now()}-${selectedFile.name.replace(/\s+/g,'_')}`;
+    const safeName = selectedFile.name.replace(/\s+/g,'_');
+    const uniqueId = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
+    const path = `menu-${uniqueId}-${safeName}`;
     try {
-      const { data, error } = await supabase.storage.from('menu-images').upload(path, selectedFile, { cacheControl: '3600', upsert: false });
+      const { data, error } = await supabase.storage.from('menu-images').upload(path, selectedFile, { cacheControl: '3600', upsert: true });
       if(error){ console.error('upload error', error); alert('Image upload failed'); image_path = null; }
       else image_path = data.path;
     } catch(e){
@@ -258,9 +346,31 @@ adminSaveBtn.addEventListener('click', async ()=>{
       if(error) { alert('Update failed'); console.error('update error', error); }
       else { showTemp('Updated'); }
     } else {
-      const { data, error } = await supabase.from('menu_items').insert([{ name, price, category, image_path }]);
-      if(error){ alert('Add failed'); console.error('insert error', error); }
-      else { showTemp('Added'); }
+      const { error } = await supabase.from('menu_items').insert([{ name, price, category, image_path }]);
+      if(error){
+        if(error.code === '23505'){
+          const { data: existing, error: lookupError } = await supabase
+            .from('menu_items')
+            .select('id')
+            .eq('name', name)
+            .eq('category', category)
+            .limit(1);
+          if(lookupError || !existing || existing.length === 0){
+            alert('Add failed');
+            console.error('insert error', error);
+          } else {
+            const { error: updateError } = await supabase
+              .from('menu_items')
+              .update({ price, image_path })
+              .eq('id', existing[0].id);
+            if(updateError){ alert('Update failed'); console.error('update error', updateError); }
+            else { showTemp('Updated existing'); }
+          }
+        } else {
+          alert('Add failed');
+          console.error('insert error', error);
+        }
+      } else { showTemp('Added'); }
     }
     // reset form
     admin_name.value = admin_price.value = admin_category.value = '';
