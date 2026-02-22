@@ -316,6 +316,10 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
     return byCat && byQuery;
   });
 
+  // add/remove helper class when only one item present (prevents elongated single-item card)
+  if(filtered.length === 1) itemsEl.classList.add('single-item');
+  else itemsEl.classList.remove('single-item');
+
   if(filtered.length === 0){
     itemsEl.innerHTML = '<p style="padding:12px;color:var(--muted)">No items found</p>';
     return;
