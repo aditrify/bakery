@@ -13,6 +13,8 @@ const ordersList = document.getElementById('ordersList');
 const admin_name = document.getElementById('admin_name');
 const admin_price = document.getElementById('admin_price');
 const admin_category = document.getElementById('admin_category');
+const admin_item_type = document.getElementById('admin_item_type');
+const admin_is_cake = document.getElementById('admin_is_cake');
 const admin_photo = document.getElementById('admin_photo');
 const adminSaveBtn = document.getElementById('adminSaveBtn');
 const adminCancelBtn = document.getElementById('adminCancelBtn');
@@ -190,7 +192,7 @@ async function renderMenuItems(){
       div.innerHTML = `
         <img src="${imgUrl || '/icons/192.png'}" class="thumb" onerror="this.src='/icons/192.png'"/>
         <div style="flex:1">
-          <strong>${escapeHtml(it.name)}</strong><div style="font-size:13px;color:var(--muted)">₹${it.price} • ${escapeHtml(it.category)}</div>
+          <strong>${escapeHtml(it.name)}</strong><div style="font-size:13px;color:var(--muted)">₹${it.price} • ${escapeHtml(it.category)} • ${escapeHtml(it.item_type || 'veg')}${it.is_cake ? ' • cake' : ''}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="editBtn" data-id="${it.id}">Edit</button>
@@ -210,6 +212,8 @@ async function renderMenuItems(){
         admin_name.value = data.name || '';
         admin_price.value = data.price || '';
         admin_category.value = data.category || '';
+        if(admin_item_type) admin_item_type.value = data.item_type || 'veg';
+        if(admin_is_cake) admin_is_cake.checked = Boolean(data.is_cake);
         useImagePath = data.image_path || null;
         previewWrap.style.display = 'none';
         setActivePanel('add');
@@ -239,10 +243,23 @@ async function getNextMenuItemId(){
   return Number(data[0].id || 0) + 1;
 }
 
+async function updateOrderState(id, updates){
+  const { error } = await supabase.from('orders').update(updates).eq('id', id);
+  if(error){
+    alert(`Update failed: ${error.message || 'unknown error'}`);
+    console.error('order update error', error);
+    return false;
+  }
+  return true;
+}
+
+function statusChip(label, css){
+  return `<span class="status-chip ${css}">${escapeHtml(label)}</span>`;
+}
+
 async function renderOrders(){
   ordersList.innerHTML = 'Loading…';
   try {
-    // Try ordering by created_at column first; if that errors (some schemas use 'created'), fallback.
     let resp = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(50);
     if(resp.error){
       console.warn('order fetch by created_at failed, falling back to created column', resp.error);
@@ -259,6 +276,10 @@ async function renderOrders(){
     data.forEach(o=>{
       const cre = o.created_at || o.created || o.createdAt || o.created_on || null;
       const when = cre ? new Date(cre).toLocaleString() : '(unknown)';
+      const scheduled = o.scheduled_at ? new Date(o.scheduled_at).toLocaleString() : (o.pickup || '(not set)');
+      const orderMode = o.order_mode || ((String(o.pickup || '').toLowerCase().includes('delivery')) ? 'delivery' : 'pickup');
+      const orderStatus = o.order_status || 'pending';
+      const paymentStatus = o.payment_status || 'pending';
       let items = [];
       if(Array.isArray(o.items)) items = o.items;
       else if(typeof o.items === 'string'){
@@ -266,34 +287,50 @@ async function renderOrders(){
       }
       const wrap = document.createElement('div');
       wrap.style.border = '1px solid #f0eaea';
-      wrap.style.padding = '8px';
-      wrap.style.marginBottom = '8px';
+      wrap.style.padding = '10px';
+      wrap.style.marginBottom = '10px';
       wrap.innerHTML = `
-        <div style="display:flex;justify-content:space-between">
-          <div><strong>${escapeHtml(o.name || 'Guest')}</strong> • ₹${o.total}</div>
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div><strong>#${o.id} ${escapeHtml(o.name || 'Guest')}</strong> • ₹${o.total}</div>
           <div style="font-size:12px;color:var(--muted)">${when}</div>
         </div>
-        <div style="font-size:13px;color:var(--muted);margin-top:6px">${escapeHtml(o.address || '')}</div>
-        <div style="margin-top:6px">
-          ${ items.map(it=>`<div style="font-size:13px">${escapeHtml(it.name)} x ${it.qty} = ₹${it.price*it.qty}</div>`).join('') }
+        <div class="order-badges">
+          ${statusChip(`Mode: ${orderMode}`, 'status-chip')}
+          ${statusChip(`Order: ${orderStatus}`, `order-${escapeHtml(orderStatus)}`)}
+          ${statusChip(`Payment: ${paymentStatus}`, paymentStatus === 'done' ? 'payment-done' : 'status-chip')}
         </div>
-        <div style="margin-top:8px;display:flex;justify-content:flex-end">
-          <button class="delOrderBtn" data-id="${o.id}" style="color:#b00">Delete Order</button>
+        <div style="font-size:13px;color:var(--muted);margin-top:6px">Phone: ${escapeHtml(o.phone || '-')}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px">Address: ${escapeHtml(o.address || '-')}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px">Scheduled: ${escapeHtml(scheduled)}</div>
+        <div style="margin-top:8px;border-top:1px dashed #eee;padding-top:8px">
+          ${ items.map(it=>`<div style="font-size:13px">${escapeHtml(it.name)}${it.weight ? ` (${escapeHtml(it.weight)})` : ''}${it.egg_preference ? ` (${escapeHtml(it.egg_preference)})` : ''} x ${it.qty} = ₹${Number(it.price||0)*Number(it.qty||0)}</div>`).join('') }
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="markDeliveredBtn" data-id="${o.id}">Mark Delivered</button>
+          <button class="markPaymentBtn" data-id="${o.id}">Payment Done</button>
+          <button class="markCancelledBtn" data-id="${o.id}" style="color:#b00">Cancel Order</button>
         </div>
       `;
       ordersList.appendChild(wrap);
     });
-    ordersList.querySelectorAll('.delOrderBtn').forEach(btn => {
+
+    ordersList.querySelectorAll('.markDeliveredBtn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = Number(btn.getAttribute('data-id'));
-        if(!confirm('Delete this order?')) return;
-        const { error: deleteError } = await supabase.from('orders').delete().eq('id', id);
-        if(deleteError){
-          alert('Delete failed');
-          console.error('order delete error', deleteError);
-          return;
-        }
-        await renderOrders();
+        if(await updateOrderState(id, { order_status: 'delivered' })) await renderOrders();
+      });
+    });
+    ordersList.querySelectorAll('.markPaymentBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.getAttribute('data-id'));
+        if(await updateOrderState(id, { payment_status: 'done' })) await renderOrders();
+      });
+    });
+    ordersList.querySelectorAll('.markCancelledBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.getAttribute('data-id'));
+        if(!confirm('Mark this order as cancelled?')) return;
+        if(await updateOrderState(id, { order_status: 'cancelled' })) await renderOrders();
       });
     });
   } catch(e){
@@ -362,6 +399,8 @@ adminSaveBtn.addEventListener('click', async ()=>{
   const name = (admin_name.value || '').trim();
   const price = Number(admin_price.value || 0);
   const category = (admin_category.value || '').trim() || 'Uncategorized';
+  const item_type = (admin_item_type?.value || 'veg').trim();
+  const is_cake = Boolean(admin_is_cake?.checked);
   if(!name || !price){ alert('Name & price required'); return; }
 
   adminSaveBtn.disabled = true;
@@ -392,14 +431,14 @@ adminSaveBtn.addEventListener('click', async ()=>{
   uploadStatus.textContent = 'Saving item…';
   try {
     if(editingId){
-      const updates = { name, price, category };
+      const updates = { name, price, category, item_type, is_cake };
       if(image_path) updates.image_path = image_path;
       const { error } = await supabase.from('menu_items').update(updates).eq('id', editingId);
       if(error) { alert('Update failed'); console.error('update error', error); }
       else { showTemp('Updated'); }
     } else {
       const nextId = await getNextMenuItemId();
-      const { error } = await supabase.from('menu_items').insert([{ id: nextId, name, price, category, image_path }]);
+      const { error } = await supabase.from('menu_items').insert([{ id: nextId, name, price, category, item_type, meat_type: item_type, is_cake, image_path }]);
       if(error){
         if(error.code === '23505'){
           alert('Add failed: duplicate ID. Try again.');
@@ -412,6 +451,8 @@ adminSaveBtn.addEventListener('click', async ()=>{
     }
     // reset form
     admin_name.value = admin_price.value = admin_category.value = '';
+    if(admin_item_type) admin_item_type.value = 'veg';
+    if(admin_is_cake) admin_is_cake.checked = false;
     admin_photo.value = '';
     previewWrap.style.display = 'none';
     selectedFile = null;
@@ -429,6 +470,8 @@ adminSaveBtn.addEventListener('click', async ()=>{
 
 adminCancelBtn.addEventListener('click', ()=>{
   admin_name.value = admin_price.value = admin_category.value = '';
+  if(admin_item_type) admin_item_type.value = 'veg';
+  if(admin_is_cake) admin_is_cake.checked = false;
   admin_photo.value = '';
   previewWrap.style.display = 'none';
   selectedFile = null;
