@@ -123,7 +123,7 @@
           </label>
           <label>
             <span id="pickupLabel">Pickup Date &amp; Time</span>
-            <input id="custPickup" placeholder="Pickup time (e.g., Today 5 PM)" />
+            <input id="custPickup" type="datetime-local" />
           </label>
           <label>
             Address (if delivery)
@@ -138,6 +138,43 @@
         <button id="modalCancel" class="btn-muted">Cancel</button>
         <!-- This button now places the order on server (admin will see it) -->
         <button id="modalSend" class="btn-primary">Place Order</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Cake customization modal -->
+  <div id="cakeModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="cakeBackdrop"></div>
+    <div class="modal-panel" role="document" aria-labelledby="cakeModalTitle">
+      <header class="modal-header">
+        <h2 id="cakeModalTitle">Customize Cake</h2>
+        <button id="closeCakeModal" class="modal-close" aria-label="Close">&times;</button>
+      </header>
+
+      <div class="modal-body">
+        <div id="cakeModalItemName" style="font-weight:700;margin-bottom:10px"></div>
+        <div class="modal-inputs">
+          <label>
+            Weight
+            <select id="cakeWeightSelect">
+              <option value="0.5 kg">0.5 kg</option>
+              <option value="1 kg">1 kg</option>
+              <option value="2 kg">2 kg</option>
+            </select>
+          </label>
+          <label>
+            Type
+            <select id="cakeEggSelect">
+              <option value="egg">Egg</option>
+              <option value="eggless">Eggless</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button id="cakeCancelBtn" class="btn-muted">Cancel</button>
+        <button id="cakeConfirmBtn" class="btn-primary">Add to Cart</button>
       </footer>
     </div>
   </div>

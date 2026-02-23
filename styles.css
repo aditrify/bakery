@@ -215,6 +215,8 @@ main{
 /* price badge */
 .price-badge{position:absolute;top:8px;right:8px;background:var(--accent);color:white;padding:6px 8px;border-radius:12px;font-weight:700;font-size:13px}
 .card h3{margin:8px 0 6px 0;font-size:14px}
+.item-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.item-tag{font-size:11px;padding:2px 8px;border-radius:999px;background:#fff3e8;color:#8a5a2b;border:1px solid #ffe0bf}
 .qty-row{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .qty-controls{display:flex;align-items:center;gap:8px}
 .qty-controls button{width:28px;height:28px;border-radius:50%;border:none;background:#f1f1f1;cursor:pointer}
@@ -243,6 +245,14 @@ main{
 .modal-item .m-qty{display:flex;align-items:center;gap:8px}
 .modal-inputs label{display:block;margin-top:8px;font-size:13px}
 .modal-inputs input,.modal-inputs textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #eee;margin-top:6px;font-size:14px}
+.modal-inputs select{width:100%;padding:8px;border-radius:8px;border:1px solid #eee;margin-top:6px;font-size:14px;background:#fff}
+
+.order-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.status-chip{display:inline-block;font-size:11px;padding:3px 8px;border-radius:999px;background:#f5f5f5;color:#444}
+.status-chip.order-delivered{background:#eaf9ec;color:#1f7a35}
+.status-chip.order-cancelled{background:#fdecec;color:#a22}
+.status-chip.order-pending{background:#fff6e8;color:#905a12}
+.status-chip.payment-done{background:#eaf3ff;color:#1d4e89}
 
 /* order-type specific styling to ensure radios and labels wrap nicely on small screens */
 .order-type-row .order-type-controls{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px; }

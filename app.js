@@ -16,6 +16,8 @@ let guestCheckout = false; // when user chooses "Continue as guest"
 let orderType = 'pickup';
 const DELIVERY_FEE = 50;
 const DELIVERY_MIN_TOTAL = 199;
+const PICKUP_ADDRESS_DEFAULT = 'Always Shine Location';
+const DEFAULT_CAKE_WEIGHTS = ['0.5 kg','1 kg','2 kg'];
 
 // UI elements
 const itemsEl = document.getElementById('items');
@@ -39,6 +41,14 @@ const custName = document.getElementById('custName');
 const custPhone = document.getElementById('custPhone');
 const custPickup = document.getElementById('custPickup');
 const custAddress = document.getElementById('custAddress');
+const cakeModal = document.getElementById('cakeModal');
+const cakeBackdrop = document.getElementById('cakeBackdrop');
+const closeCakeModalBtn = document.getElementById('closeCakeModal');
+const cakeCancelBtn = document.getElementById('cakeCancelBtn');
+const cakeConfirmBtn = document.getElementById('cakeConfirmBtn');
+const cakeWeightSelect = document.getElementById('cakeWeightSelect');
+const cakeEggSelect = document.getElementById('cakeEggSelect');
+const cakeModalItemName = document.getElementById('cakeModalItemName');
 
 const signInBtnTop = document.getElementById('signInBtn');
 const accountBadge = document.getElementById('accountBadge');
@@ -258,7 +268,12 @@ async function loadMenuFromSupabase(){
         name: row.name,
         price: Number(row.price),
         category: row.category || 'Uncategorized',
-        image_path: row.image_path || null
+        image_path: row.image_path || null,
+        item_type: row.item_type || 'veg',
+        meat_type: row.meat_type || 'veg',
+        is_cake: Boolean(row.is_cake),
+        weight_options: Array.isArray(row.weight_options) && row.weight_options.length ? row.weight_options : DEFAULT_CAKE_WEIGHTS,
+        egg_options: Array.isArray(row.egg_options) && row.egg_options.length ? row.egg_options : ['egg', 'eggless']
       }));
     }
   } catch(e){
@@ -349,13 +364,16 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
 
     const qtyRow = document.createElement('div');
     qtyRow.className = 'qty-row';
+    const tags = [item.item_type, item.meat_type, item.category].filter(Boolean);
     qtyRow.innerHTML = `
       <div class="qty-controls">
         <button class="minus" aria-label="Decrease ${escapeHtml(item.name)}">−</button>
         <div class="qty-display" data-id="${item.id}" aria-live="polite">${getQty(item.id)}</div>
         <button class="plus" aria-label="Increase ${escapeHtml(item.name)}">+</button>
       </div>
-      <div class="cat" style="font-size:12px;color:var(--muted)">${escapeHtml(item.category)}</div>
+      <div>
+        <div class="item-meta">${tags.map(tag => `<span class="item-tag">${escapeHtml(tag)}</span>`).join('')}</div>
+      </div>
     `;
 
     div.appendChild(img);
@@ -363,7 +381,7 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
     div.appendChild(title);
     div.appendChild(qtyRow);
 
-    div.querySelector('.plus').addEventListener('click', ()=> addToCart(item));
+    div.querySelector('.plus').addEventListener('click', ()=> handleAddItem(item));
     div.querySelector('.minus').addEventListener('click', ()=> removeFromCart(item));
 
     itemsEl.appendChild(div);
@@ -395,9 +413,52 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
 }
 
 // ---------------------- cart ----------------------
-function getQty(id){ const f = cart.find(c=>c.id===id); return f ? f.qty : 0; }
-function addToCart(item){ if(!item) return; const found = cart.find(c=>c.id===item.id); if(found) found.qty++; else cart.push({id:item.id,name:item.name,price:item.price,qty:1}); saveCart(); renderCart(); updateQtyDisplay(item.id); }
-function removeFromCart(item){ if(!item) return; const found = cart.find(c=>c.id===item.id); if(!found) return; found.qty--; if(found.qty<=0) cart = cart.filter(c=>c.id!==item.id); saveCart(); renderCart(); updateQtyDisplay(item.id); }
+function cartItemKey(item){
+  return `${item.id}::${item.weight || ''}::${item.egg_preference || ''}`;
+}
+function getQty(id){ return cart.filter(c=>c.id===id).reduce((sum, entry)=> sum + Number(entry.qty || 0), 0); }
+function openCakeModal(item){
+  if(!cakeModal || !item) return;
+  cakeModalItemName.textContent = item.name;
+  cakeWeightSelect.innerHTML = (item.weight_options || DEFAULT_CAKE_WEIGHTS).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('');
+  cakeEggSelect.innerHTML = (item.egg_options || ['egg', 'eggless']).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('');
+  cakeModal.dataset.itemId = String(item.id);
+  cakeModal.style.display = 'block';
+  cakeModal.setAttribute('aria-hidden', 'false');
+}
+function closeCakeModal(){
+  if(!cakeModal) return;
+  cakeModal.style.display = 'none';
+  cakeModal.setAttribute('aria-hidden', 'true');
+  delete cakeModal.dataset.itemId;
+}
+function handleAddItem(item){
+  if(!item) return;
+  if(item.is_cake){
+    openCakeModal(item);
+    return;
+  }
+  addToCart(item);
+}
+function addToCart(item){
+  if(!item) return;
+  const key = cartItemKey(item);
+  const found = cart.find(c=>cartItemKey(c)===key);
+  if(found) found.qty++;
+  else cart.push({
+    id:item.id,
+    name:item.name,
+    price:item.price,
+    qty:1,
+    category:item.category || '',
+    item_type:item.item_type || '',
+    meat_type:item.meat_type || '',
+    weight:item.weight || null,
+    egg_preference:item.egg_preference || null
+  });
+  saveCart(); renderCart(); updateQtyDisplay(item.id);
+}
+function removeFromCart(item){ if(!item) return; const found = cart.find(c=>cartItemKey(c)===cartItemKey(item)); if(!found) return; found.qty--; if(found.qty<=0) cart = cart.filter(c=>cartItemKey(c)!==cartItemKey(item)); saveCart(); renderCart(); updateQtyDisplay(item.id); }
 function saveCart(){ localStorage.setItem('cart_v1', JSON.stringify(cart)); }
 function renderCart(){ const total = cart.reduce((s,i)=> s + (i.price*i.qty), 0); totalEl.textContent = 'Total — ₹' + total; }
 function updateQtyDisplay(id){ document.querySelectorAll('.qty-display').forEach(el=>{ if(Number(el.getAttribute('data-id')) === id) el.textContent = getQty(id); }); }
@@ -431,24 +492,35 @@ async function placeOrderToServer(){
   }
   const total = orderType === 'delivery' ? subtotal + DELIVERY_FEE : subtotal;
 
-  const pickupValue = (custPickup.value || '').trim();
-  const pickupInfo = orderType === 'delivery'
-    ? (pickupValue ? `Delivery - ${pickupValue}` : 'Delivery')
-    : (pickupValue ? `Pickup - ${pickupValue}` : 'Pickup');
+  const selectedDateTime = (custPickup.value || '').trim();
+  if(!selectedDateTime){
+    showToast('Please select pickup/delivery date and time');
+    return;
+  }
+  const orderAddress = orderType === 'pickup'
+    ? PICKUP_ADDRESS_DEFAULT
+    : ((custAddress.value || (profile ? profile.address : '') || '').trim());
+  if(orderType === 'delivery' && !orderAddress){
+    showToast('Please provide delivery address');
+    return;
+  }
 
   const payload = {
-    // store null for user_id if guest
     user_id: profile ? profile.id : (guestUser ? guestUser.id : null),
     items: cart,
     total,
     name: custName.value || (profile ? profile.name : '') || '',
     phone: custPhone.value || (profile ? profile.phone : '') || '',
-    pickup: pickupInfo,
-    address: custAddress.value || (profile ? profile.address : '') || ''
+    pickup: selectedDateTime,
+    address: orderAddress,
+    order_mode: orderType,
+    scheduled_at: new Date(selectedDateTime).toISOString(),
+    order_status: 'pending',
+    payment_status: 'pending'
   };
 
   // if signed-in user updated address/name, save back to profile
-  if(profile && payload.address && payload.address !== profile.address){
+  if(profile && orderType === 'delivery' && payload.address && payload.address !== profile.address){
     await updateSupabaseProfile({ name: payload.name, phone: payload.phone, address: payload.address });
   }
 
@@ -479,14 +551,25 @@ async function placeOrderToServer(){
 // ---------------------- modal logic ----------------------
 let pendingOrderAttempt = false;
 
+function setDefaultDateTime(){
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0,16);
+}
+
 function updateOrderTypeUI(){
   if(pickupLabel){
     pickupLabel.textContent = orderType === 'delivery' ? 'Delivery Date & Time' : 'Pickup Date & Time';
   }
-  if(orderType === 'delivery'){
-    custPickup.placeholder = 'Delivery time (e.g., Today 5 PM)';
+  if(custPickup && !custPickup.value){
+    custPickup.value = setDefaultDateTime();
+  }
+  if(orderType === 'pickup'){
+    custAddress.value = PICKUP_ADDRESS_DEFAULT;
+    custAddress.setAttribute('readonly', 'true');
   } else {
-    custPickup.placeholder = 'Pickup time (e.g., Today 5 PM)';
+    if(custAddress.value === PICKUP_ADDRESS_DEFAULT) custAddress.value = '';
+    custAddress.removeAttribute('readonly');
   }
   renderOrderModal();
 }
@@ -512,6 +595,7 @@ function openOrderModal(){
       custPhone.value = profile.phone || '';
       custAddress.value = profile.address || '';
     }
+    if(!custPickup.value) custPickup.value = setDefaultDateTime();
   })();
   updateOrderTypeUI();
   renderOrderModal();
@@ -530,29 +614,31 @@ function renderOrderModal(){
   }
   cart.forEach(item => {
     const itemWrap = document.createElement('div');
+    const rowKey = cartItemKey(item);
+    const cakeText = [item.weight, item.egg_preference].filter(Boolean).join(' • ');
     itemWrap.className = 'modal-item';
     itemWrap.innerHTML = `
       <div style="flex:1">
         <h4>${escapeHtml(item.name)}</h4>
-        <div style="font-size:13px;color:var(--muted)">₹${item.price} each</div>
+        <div style="font-size:13px;color:var(--muted)">₹${item.price} each${cakeText ? ` • ${escapeHtml(cakeText)}` : ''}</div>
       </div>
       <div>
         <div class="m-qty">
-          <button class="m-minus" data-id="${item.id}" aria-label="Decrease">−</button>
-          <span class="m-qty-display" data-id="${item.id}">${item.qty}</span>
-          <button class="m-plus" data-id="${item.id}" aria-label="Increase">+</button>
+          <button class="m-minus" data-key="${escapeHtml(rowKey)}" aria-label="Decrease">−</button>
+          <span class="m-qty-display" data-key="${escapeHtml(rowKey)}">${item.qty}</span>
+          <button class="m-plus" data-key="${escapeHtml(rowKey)}" aria-label="Increase">+</button>
         </div>
         <div style="text-align:right;margin-top:6px">
-          <button class="m-delete" data-id="${item.id}" style="font-size:12px;color:#b00;background:transparent;border:none;cursor:pointer">Delete</button>
+          <button class="m-delete" data-key="${escapeHtml(rowKey)}" style="font-size:12px;color:#b00;background:transparent;border:none;cursor:pointer">Delete</button>
         </div>
       </div>
     `;
     modalItemsEl.appendChild(itemWrap);
   });
 
-  modalItemsEl.querySelectorAll('.m-plus').forEach(b=>{ b.addEventListener('click', (e)=> { const id = Number(b.getAttribute('data-id')); const mi = menuItems.find(m=>m.id===id); addToCart(mi); renderOrderModal(); }); });
-  modalItemsEl.querySelectorAll('.m-minus').forEach(b=>{ b.addEventListener('click', (e)=> { const id = Number(b.getAttribute('data-id')); const mi = menuItems.find(m=>m.id===id); removeFromCart(mi); renderOrderModal(); }); });
-  modalItemsEl.querySelectorAll('.m-delete').forEach(b=>{ b.addEventListener('click', (e)=> { const id = Number(b.getAttribute('data-id')); cart = cart.filter(c=>c.id !== id); saveCart(); renderCart(); renderOrderModal(); }); });
+  modalItemsEl.querySelectorAll('.m-plus').forEach(b=>{ b.addEventListener('click', ()=> { const key = b.getAttribute('data-key'); const item = cart.find(c=>cartItemKey(c)===key); if(item){ addToCart(item); renderOrderModal(); } }); });
+  modalItemsEl.querySelectorAll('.m-minus').forEach(b=>{ b.addEventListener('click', ()=> { const key = b.getAttribute('data-key'); const item = cart.find(c=>cartItemKey(c)===key); if(item){ removeFromCart(item); renderOrderModal(); } }); });
+  modalItemsEl.querySelectorAll('.m-delete').forEach(b=>{ b.addEventListener('click', ()=> { const key = b.getAttribute('data-key'); cart = cart.filter(c=>cartItemKey(c)!==key); saveCart(); renderCart(); renderOrderModal(); }); });
 
   const subtotal = cart.reduce((s,i)=> s + (i.price*i.qty), 0);
   let total = subtotal;
@@ -578,6 +664,24 @@ function renderOrderModal(){
 modalSendBtn.addEventListener('click', ()=> {
   placeOrderToServer();
 });
+
+
+if(cakeConfirmBtn){
+  cakeConfirmBtn.addEventListener('click', ()=> {
+    const id = Number(cakeModal?.dataset?.itemId || 0);
+    const selected = menuItems.find(m => m.id === id);
+    if(!selected) return;
+    addToCart({
+      ...selected,
+      weight: cakeWeightSelect?.value || '0.5 kg',
+      egg_preference: cakeEggSelect?.value || 'egg'
+    });
+    closeCakeModal();
+  });
+}
+if(closeCakeModalBtn) closeCakeModalBtn.addEventListener('click', closeCakeModal);
+if(cakeCancelBtn) cakeCancelBtn.addEventListener('click', closeCakeModal);
+if(cakeBackdrop) cakeBackdrop.addEventListener('click', closeCakeModal);
 
 // ---------------------- auth modal UI ----------------------
 function showAuthChoice(){
