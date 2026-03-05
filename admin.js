@@ -438,7 +438,7 @@ adminSaveBtn.addEventListener('click', async ()=>{
       else { showTemp('Updated'); }
     } else {
       const nextId = await getNextMenuItemId();
-      const { error } = await supabase.from('menu_items').insert([{ id: nextId, name, price, category, item_type, meat_type: item_type, is_cake, image_path }]);
+      const { error } = await supabase.from('menu_items').insert([{ id: nextId, name, price, category, item_type, is_cake, image_path }]);
       if(error){
         if(error.code === '23505'){
           alert('Add failed: duplicate ID. Try again.');

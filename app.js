@@ -17,7 +17,7 @@ let orderType = 'pickup';
 const DELIVERY_FEE = 50;
 const DELIVERY_MIN_TOTAL = 199;
 const PICKUP_ADDRESS_DEFAULT = 'Always Shine Location';
-const DEFAULT_CAKE_WEIGHTS = ['0.5 kg','1 kg','2 kg'];
+const DEFAULT_CAKE_WEIGHTS = ['1 Pound','2 Pound'];
 
 // UI elements
 const itemsEl = document.getElementById('items');
@@ -34,13 +34,15 @@ const modalSendBtn = document.getElementById('modalSend');
 const modalCancelBtn = document.getElementById('modalCancel');
 const modalCloseBtn = document.getElementById('closeModal');
 const deliveryNote = document.getElementById('deliveryNote');
-const pickupLabel = document.getElementById('pickupLabel');
 const orderTypeInputs = Array.from(document.querySelectorAll('input[name="orderType"]'));
 
 const custName = document.getElementById('custName');
 const custPhone = document.getElementById('custPhone');
-const custPickup = document.getElementById('custPickup');
+const custDate = document.getElementById('custDate');
+const custTime = document.getElementById('custTime');
 const custAddress = document.getElementById('custAddress');
+const pickupDateLabel = document.getElementById('pickupDateLabel');
+const pickupTimeLabel = document.getElementById('pickupTimeLabel');
 const cakeModal = document.getElementById('cakeModal');
 const cakeBackdrop = document.getElementById('cakeBackdrop');
 const closeCakeModalBtn = document.getElementById('closeCakeModal');
@@ -270,7 +272,6 @@ async function loadMenuFromSupabase(){
         category: row.category || 'Uncategorized',
         image_path: row.image_path || null,
         item_type: row.item_type || 'veg',
-        meat_type: row.meat_type || 'veg',
         is_cake: Boolean(row.is_cake),
         weight_options: Array.isArray(row.weight_options) && row.weight_options.length ? row.weight_options : DEFAULT_CAKE_WEIGHTS,
         egg_options: Array.isArray(row.egg_options) && row.egg_options.length ? row.egg_options : ['egg', 'eggless']
@@ -287,8 +288,12 @@ async function loadMenuFromSupabase(){
 let currentRenderLimit = 24;
 let currentCategory = 'All';
 let currentQuery = '';
-let currentRenderedCount = 0;
 let uniqueCategories = [];
+
+const DIET_ICON_BY_TYPE = {
+  veg: '/icons/veg.png',
+  non_veg: '/icons/nonveg.png'
+};
 
 function imageUrlForItem(item){
   if(item.image_path){
@@ -342,8 +347,6 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
 
   const finiteLimit = Number.isFinite(limit) ? limit : filtered.length;
   const toRender = filtered.slice(0, finiteLimit);
-  currentRenderedCount = toRender.length;
-
   toRender.forEach(item=>{
     const div = document.createElement('div');
     div.className = 'card';
@@ -355,6 +358,10 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
     img.src = imageUrlForItem(item);
     img.onerror = function(){ this.onerror = null; this.src = '/icons/192.png'; };
 
+    const dietIcon = (!item.is_cake && DIET_ICON_BY_TYPE[item.item_type])
+      ? `<img class="diet-icon" src="${DIET_ICON_BY_TYPE[item.item_type]}" alt="${item.item_type === 'veg' ? 'Vegetarian' : 'Non-vegetarian'}" />`
+      : '';
+
     const title = document.createElement('h3');
     title.textContent = item.name;
 
@@ -364,7 +371,7 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
 
     const qtyRow = document.createElement('div');
     qtyRow.className = 'qty-row';
-    const tags = [item.item_type, item.meat_type, item.category].filter(Boolean);
+    const tags = [item.category].filter(Boolean);
     qtyRow.innerHTML = `
       <div class="qty-controls">
         <button class="minus" aria-label="Decrease ${escapeHtml(item.name)}">−</button>
@@ -376,6 +383,7 @@ function renderMenu(category='All', query='', limit = currentRenderLimit){
       </div>
     `;
 
+    div.innerHTML = dietIcon;
     div.appendChild(img);
     div.appendChild(price);
     div.appendChild(title);
@@ -452,7 +460,6 @@ function addToCart(item){
     qty:1,
     category:item.category || '',
     item_type:item.item_type || '',
-    meat_type:item.meat_type || '',
     weight:item.weight || null,
     egg_preference:item.egg_preference || null
   });
@@ -462,6 +469,33 @@ function removeFromCart(item){ if(!item) return; const found = cart.find(c=>cart
 function saveCart(){ localStorage.setItem('cart_v1', JSON.stringify(cart)); }
 function renderCart(){ const total = cart.reduce((s,i)=> s + (i.price*i.qty), 0); totalEl.textContent = 'Total — ₹' + total; }
 function updateQtyDisplay(id){ document.querySelectorAll('.qty-display').forEach(el=>{ if(Number(el.getAttribute('data-id')) === id) el.textContent = getQty(id); }); }
+
+function parseWeightToPounds(weight){
+  const normalized = String(weight || '').trim().toLowerCase();
+  const num = Number.parseFloat(normalized);
+  if(Number.isNaN(num)) return 0;
+  if(normalized.includes('kg') || normalized.includes('kilo')) return num * 2.20462;
+  if(normalized.includes('pound') || normalized.includes('lb')) return num;
+  return 0;
+}
+
+function inferBaseWeightInPounds(item){
+  const fromNameMatch = (item.name || '').toLowerCase().match(/(\d+(?:\.\d+)?)\s*(pound|lb|kg)/);
+  if(fromNameMatch){
+    const fromName = parseWeightToPounds(`${fromNameMatch[1]} ${fromNameMatch[2]}`);
+    if(fromName > 0) return fromName;
+  }
+  const optionWeights = (item.weight_options || []).map(parseWeightToPounds).filter(v => v > 0);
+  if(optionWeights.length) return Math.max(...optionWeights);
+  return 2;
+}
+
+function getCakePriceForWeight(item, selectedWeight){
+  const baseWeight = inferBaseWeightInPounds(item);
+  const chosenWeight = parseWeightToPounds(selectedWeight);
+  if(!baseWeight || !chosenWeight) return item.price;
+  return Math.round((item.price / baseWeight) * chosenWeight);
+}
 
 // ---------------------- order persistence (to Supabase) ----------------------
 async function placeOrderToServer(){
@@ -492,11 +526,13 @@ async function placeOrderToServer(){
   }
   const total = orderType === 'delivery' ? subtotal + DELIVERY_FEE : subtotal;
 
-  const selectedDateTime = (custPickup.value || '').trim();
-  if(!selectedDateTime){
+  const selectedDate = (custDate.value || '').trim();
+  const selectedTime = (custTime.value || '').trim();
+  if(!selectedDate || !selectedTime){
     showToast('Please select pickup/delivery date and time');
     return;
   }
+  const selectedDateTime = `${selectedDate}T${selectedTime}`;
   const orderAddress = orderType === 'pickup'
     ? PICKUP_ADDRESS_DEFAULT
     : ((custAddress.value || (profile ? profile.address : '') || '').trim());
@@ -511,7 +547,7 @@ async function placeOrderToServer(){
     total,
     name: custName.value || (profile ? profile.name : '') || '',
     phone: custPhone.value || (profile ? profile.phone : '') || '',
-    pickup: selectedDateTime,
+    pickup: `${selectedDate} ${selectedTime}`,
     address: orderAddress,
     order_mode: orderType,
     scheduled_at: new Date(selectedDateTime).toISOString(),
@@ -551,18 +587,24 @@ async function placeOrderToServer(){
 // ---------------------- modal logic ----------------------
 let pendingOrderAttempt = false;
 
-function setDefaultDateTime(){
+function setDefaultSchedule(){
   const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  return now.toISOString().slice(0,16);
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset() + 30);
+  const localIso = now.toISOString();
+  return { date: localIso.slice(0,10), time: localIso.slice(11,16) };
 }
 
 function updateOrderTypeUI(){
-  if(pickupLabel){
-    pickupLabel.textContent = orderType === 'delivery' ? 'Delivery Date & Time' : 'Pickup Date & Time';
+  if(pickupDateLabel){
+    pickupDateLabel.textContent = orderType === 'delivery' ? 'Delivery Date' : 'Pickup Date';
   }
-  if(custPickup && !custPickup.value){
-    custPickup.value = setDefaultDateTime();
+  if(pickupTimeLabel){
+    pickupTimeLabel.textContent = orderType === 'delivery' ? 'Delivery Time' : 'Pickup Time';
+  }
+  if(custDate && custTime && (!custDate.value || !custTime.value)){
+    const schedule = setDefaultSchedule();
+    custDate.value = schedule.date;
+    custTime.value = schedule.time;
   }
   if(orderType === 'pickup'){
     custAddress.value = PICKUP_ADDRESS_DEFAULT;
@@ -595,7 +637,11 @@ function openOrderModal(){
       custPhone.value = profile.phone || '';
       custAddress.value = profile.address || '';
     }
-    if(!custPickup.value) custPickup.value = setDefaultDateTime();
+    if(custDate && custTime && (!custDate.value || !custTime.value)){
+      const schedule = setDefaultSchedule();
+      custDate.value = schedule.date;
+      custTime.value = schedule.time;
+    }
   })();
   updateOrderTypeUI();
   renderOrderModal();
@@ -673,8 +719,9 @@ if(cakeConfirmBtn){
     if(!selected) return;
     addToCart({
       ...selected,
-      weight: cakeWeightSelect?.value || '0.5 kg',
-      egg_preference: cakeEggSelect?.value || 'egg'
+      weight: cakeWeightSelect?.value || '1 Pound',
+      egg_preference: cakeEggSelect?.value || 'egg',
+      price: getCakePriceForWeight(selected, cakeWeightSelect?.value || '1 Pound')
     });
     closeCakeModal();
   });

@@ -45,10 +45,10 @@ WHERE order_mode = 'pickup' AND coalesce(trim(address), '') = '';
 -- MENU ITEMS TABLE ENHANCEMENT
 -- ============================
 ALTER TABLE public.menu_items
+  DROP COLUMN IF EXISTS meat_type,
   ADD COLUMN IF NOT EXISTS item_type text NOT NULL DEFAULT 'veg' CHECK (item_type IN ('veg', 'non_veg')),
-  ADD COLUMN IF NOT EXISTS meat_type text NOT NULL DEFAULT 'veg' CHECK (meat_type IN ('veg', 'non_veg')),
   ADD COLUMN IF NOT EXISTS is_cake boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS weight_options jsonb NOT NULL DEFAULT '["0.5 kg", "1 kg", "2 kg"]'::jsonb,
+  ADD COLUMN IF NOT EXISTS weight_options jsonb NOT NULL DEFAULT '["1 Pound", "2 Pound"]'::jsonb,
   ADD COLUMN IF NOT EXISTS egg_options jsonb NOT NULL DEFAULT '["egg", "eggless"]'::jsonb;
 
 -- Optional index for admin filtering.

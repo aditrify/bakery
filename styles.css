@@ -213,6 +213,8 @@ main{
 }
 
 /* price badge */
+
+.diet-icon{position:absolute;top:8px;left:8px;width:28px;height:28px;object-fit:contain;background:rgba(255,255,255,0.95);border-radius:4px;padding:2px;border:1px solid #ddd;z-index:2}
 .price-badge{position:absolute;top:8px;right:8px;background:var(--accent);color:white;padding:6px 8px;border-radius:12px;font-weight:700;font-size:13px}
 .card h3{margin:8px 0 6px 0;font-size:14px}
 .item-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}

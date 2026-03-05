@@ -122,8 +122,12 @@
             <input id="custPhone" placeholder="Phone number (e.g., 9898xxxxxx)" />
           </label>
           <label>
-            <span id="pickupLabel">Pickup Date &amp; Time</span>
-            <input id="custPickup" type="datetime-local" />
+            <span id="pickupDateLabel">Pickup Date</span>
+            <input id="custDate" type="date" />
+          </label>
+          <label>
+            <span id="pickupTimeLabel">Pickup Time</span>
+            <input id="custTime" type="time" />
           </label>
           <label>
             Address (if delivery)
@@ -157,9 +161,8 @@
           <label>
             Weight
             <select id="cakeWeightSelect">
-              <option value="0.5 kg">0.5 kg</option>
-              <option value="1 kg">1 kg</option>
-              <option value="2 kg">2 kg</option>
+              <option value="1 Pound">1 Pound</option>
+              <option value="2 Pound">2 Pound</option>
             </select>
           </label>
           <label>
